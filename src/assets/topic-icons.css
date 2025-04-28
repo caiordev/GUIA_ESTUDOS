@@ -1,0 +1,62 @@
+/* Estilos para os ícones de tópicos */
+
+/* Cores dos ícones */
+.icon-python {
+  color: #3776AB;
+}
+
+.icon-linux {
+  color: #FCC624;
+}
+
+.icon-docker {
+  color: #2496ED;
+}
+
+.icon-postgres {
+  color: #336791;
+}
+
+.icon-java {
+  color: #E76F00;
+}
+
+/* Estilos para o menu minimizado */
+.notion-sidebar.minimized .icon-python {
+  background: linear-gradient(135deg, #f0f9ff, #e6f7ff);
+  border-radius: 50%;
+}
+
+.notion-sidebar.minimized .icon-linux {
+  background: linear-gradient(135deg, #fff7e6, #fff1d6);
+  border-radius: 50%;
+}
+
+.notion-sidebar.minimized .icon-docker {
+  background: linear-gradient(135deg, #e6f7ff, #d6f0ff);
+  border-radius: 50%;
+}
+
+.notion-sidebar.minimized .icon-postgres {
+  background: linear-gradient(135deg, #f0f0ff, #e6e6ff);
+  border-radius: 50%;
+}
+
+.notion-sidebar.minimized .icon-java {
+  background: linear-gradient(135deg, #fff0e6, #ffe6d6);
+  border-radius: 50%;
+}
+
+/* Melhorias para o menu minimizado */
+.notion-sidebar.minimized .notion-sidebar-item {
+  height: 50px;
+}
+
+.notion-sidebar.minimized .topic-emoji {
+  font-size: 24px;
+  transition: transform 0.2s ease;
+}
+
+.notion-sidebar.minimized .notion-sidebar-item:hover .topic-emoji {
+  transform: scale(1.2);
+}
