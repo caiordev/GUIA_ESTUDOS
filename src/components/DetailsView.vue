@@ -1,70 +1,85 @@
 <template>
   <div class="notion-page">
-    <div class="notion-breadcrumb">
-      <router-link to="/" class="breadcrumb-item">Início</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <router-link :to="`/topico/${topicId}`" class="breadcrumb-item">{{ topic.name }}</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-item active">{{ subject.name }}</span>
+    <!-- Indicador de carregamento -->
+    <div v-if="loading" class="loading-container">
+      <div class="loading-spinner"></div>
+      <p>Carregando conteúdo...</p>
     </div>
 
-    <div class="notion-page-header">
-      <div class="notion-page-icon">
-        <DocumentTextIcon class="w-8 h-8" />
+    <!-- Mensagem de erro -->
+    <div v-else-if="error" class="error-container">
+      <p class="error-message">{{ error }}</p>
+      <button @click="loadTopics" class="retry-button">Tentar novamente</button>
+    </div>
+
+    <!-- Conteúdo principal -->
+    <template v-else>
+      <div class="notion-breadcrumb">
+        <router-link to="/" class="breadcrumb-item">Início</router-link>
+        <span class="breadcrumb-separator">/</span>
+        <router-link :to="`/topico/${topicId}`" class="breadcrumb-item">{{ topic.name }}</router-link>
+        <span class="breadcrumb-separator">/</span>
+        <span class="breadcrumb-item active">{{ subject.name }}</span>
       </div>
-      <h1 class="notion-page-title">{{ subject.name }}</h1>
-    </div>
 
-    <div class="notion-page-content">
-      <!-- Conteúdo original do guia -->
-      <div v-html="renderedContent"></div>
-      
-      <!-- Divisor minimalista -->
-      <div class="content-divider-minimal"></div>
-      
-      <!-- Seção de blocos personalizados -->
-      <div class="user-blocks-section">
-        <!-- Visualizador de blocos -->
-        <CodeBlockViewer 
-          :topicId="topicId" 
-          :subjectId="subjectId"
-          @edit="startEditing"
-          @has-blocks="checkUserBlocks"
-        />
-        
-        <!-- Botão minimalista para adicionar novo bloco -->
-        <div class="add-block-container-minimal" v-if="!showBlockEditor">
-          <button @click="showBlockEditor = true" class="add-icon-button">
-            <span class="add-icon">+</span>
-          </button>
+      <div class="notion-page-header">
+        <div class="notion-page-icon">
+          <DocumentTextIcon class="w-8 h-8" />
         </div>
-        
-        <!-- Editor de blocos -->
-        <CodeBlockEditor 
-          v-if="showBlockEditor" 
-          :topicId="topicId" 
-          :subjectId="subjectId"
-          :initialBlockType="editingBlock ? editingBlock.type : 'text'"
-          :initialLanguage="editingBlock && editingBlock.language ? editingBlock.language : 'javascript'"
-          :editingBlock="editingBlock"
-          @saved="onBlockSaved"
-          @cancel="cancelEditing"
-        />
+        <h1 class="notion-page-title">{{ subject.name }}</h1>
       </div>
-    </div>
+
+      <div class="notion-page-content">
+        <!-- Conteúdo original do guia -->
+        <div v-html="renderedContent"></div>
+        
+        <!-- Divisor minimalista -->
+        <div class="content-divider-minimal"></div>
+        
+        <!-- Seção de blocos personalizados -->
+        <div class="user-blocks-section">
+          <!-- Visualizador de blocos -->
+          <CodeBlockViewer 
+            :topicId="topicId" 
+            :subjectId="subjectId"
+            @edit="startEditing"
+            @has-blocks="checkUserBlocks"
+          />
+          
+          <!-- Botão minimalista para adicionar novo bloco -->
+          <div class="add-block-container-minimal" v-if="!showBlockEditor">
+            <button @click="showBlockEditor = true" class="add-icon-button">
+              <span class="add-icon">+</span>
+            </button>
+          </div>
+          
+          <!-- Editor de blocos -->
+          <CodeBlockEditor 
+            v-if="showBlockEditor" 
+            :topicId="topicId" 
+            :subjectId="subjectId"
+            :initialBlockType="editingBlock ? editingBlock.type : 'text'"
+            :initialLanguage="editingBlock && editingBlock.language ? editingBlock.language : 'javascript'"
+            :editingBlock="editingBlock"
+            @saved="onBlockSaved"
+            @cancel="cancelEditing"
+          />
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { topics } from '../data/index.js';
 import { marked } from 'marked';
 import { DocumentTextIcon } from '@heroicons/vue/24/outline';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github.css';
 import CodeBlockEditor from './CodeBlockEditor.vue';
 import CodeBlockViewer from './CodeBlockViewer.vue';
+import { getTopics, getTopic } from '../firebase/topics.js';
 
 export default {
   components: {
@@ -77,14 +92,66 @@ export default {
     const topicId = computed(() => route.params.topicId);
     const subjectId = computed(() => route.params.subjectId);
     
+    // Estado para armazenar os tópicos carregados do Firebase
+    const topicsData = ref([]);
+    const loading = ref(true);
+    const error = ref(null);
+    
+    // Função para carregar todos os tópicos do Firebase
+    const loadTopics = async () => {
+      try {
+        loading.value = true;
+        error.value = null;
+        const fetchedTopics = await getTopics();
+        console.log('Tópicos carregados do Firebase:', fetchedTopics);
+        topicsData.value = fetchedTopics;
+      } catch (err) {
+        console.error('Erro ao carregar tópicos:', err);
+        error.value = 'Erro ao carregar tópicos. Por favor, tente novamente.';
+      } finally {
+        loading.value = false;
+      }
+    };
+    
+    // Função para carregar um tópico específico
+    const loadSpecificTopic = async (id) => {
+      try {
+        loading.value = true;
+        error.value = null;
+        const fetchedTopic = await getTopic(id);
+        console.log('Tópico específico carregado do Firebase:', fetchedTopic);
+        
+        // Atualizar apenas o tópico específico na lista
+        const index = topicsData.value.findIndex(t => t.id === id);
+        if (index !== -1) {
+          topicsData.value[index] = fetchedTopic;
+        } else {
+          topicsData.value.push(fetchedTopic);
+        }
+      } catch (err) {
+        console.error(`Erro ao carregar tópico ${id}:`, err);
+        error.value = 'Erro ao carregar o tópico. Por favor, tente novamente.';
+      } finally {
+        loading.value = false;
+      }
+    };
+    
+    // Computed property para o tópico atual
     const topic = computed(() => {
-      return topics.find(t => t.id === topicId.value) || { name: 'Tópico não encontrado' };
+      const foundTopic = topicsData.value.find(t => t.id === topicId.value);
+      console.log(`Buscando tópico com ID: ${topicId.value}`, foundTopic);
+      return foundTopic || { name: 'Tópico não encontrado', subjects: [] };
     });
     
+    // Computed property para o assunto atual
     const subject = computed(() => {
-      const foundTopic = topics.find(t => t.id === topicId.value);
-      if (foundTopic) {
-        return foundTopic.subjects.find(s => s.id === subjectId.value) || { name: 'Assunto não encontrado', content: '' };
+      const foundTopic = topicsData.value.find(t => t.id === topicId.value);
+      console.log(`Tópico encontrado:`, foundTopic);
+      
+      if (foundTopic && foundTopic.subjects) {
+        const foundSubject = foundTopic.subjects.find(s => s.id === subjectId.value);
+        console.log(`Buscando assunto com ID: ${subjectId.value}`, foundSubject);
+        return foundSubject || { name: 'Assunto não encontrado', content: '' };
       }
       return { name: 'Assunto não encontrado', content: '' };
     });
@@ -130,11 +197,40 @@ export default {
       hasUserBlocks.value = hasBlocks;
     };
     
-    onMounted(() => {
+    onMounted(async () => {
+      // Carregar todos os tópicos do Firebase
+      await loadTopics();
+      
+      // Se temos um topicId específico, carregamos os detalhes desse tópico
+      if (topicId.value) {
+        await loadSpecificTopic(topicId.value);
+      }
+      
       // Aplicar highlight.js aos blocos de código após a montagem
       document.querySelectorAll('pre code').forEach((block) => {
         hljs.highlightElement(block);
       });
+      
+      // Log para verificar os dados carregados na montagem
+      console.log('Dados carregados na montagem:');
+      console.log('Topics do Firebase:', topicsData.value);
+      console.log('Topic atual:', topic.value);
+      console.log('Subject atual:', subject.value);
+    });
+    
+    // Observar mudanças nos parâmetros da rota
+    watch([topicId, subjectId], async () => {
+      console.log('Parâmetros da rota alterados:');
+      console.log('Novo topicId:', topicId.value);
+      console.log('Novo subjectId:', subjectId.value);
+      
+      // Se o topicId mudou, carregamos os detalhes desse tópico
+      if (topicId.value) {
+        await loadSpecificTopic(topicId.value);
+      }
+      
+      console.log('Novo topic após atualização:', topic.value);
+      console.log('Novo subject após atualização:', subject.value);
     });
     
     return {
@@ -149,7 +245,9 @@ export default {
       onBlockSaved,
       cancelEditing,
       startEditing,
-      checkUserBlocks
+      checkUserBlocks,
+      loading,
+      error
     };
   }
 };
@@ -311,6 +409,65 @@ export default {
 .notion-content-renderer pre code {
   background-color: transparent;
   padding: 0;
+}
+
+/* Estilos para o indicador de carregamento */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  width: 100%;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-top-color: #2383e2;
+  animation: spin 1s ease-in-out infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Estilos para mensagens de erro */
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background-color: #fff5f5;
+  border: 1px solid #feb2b2;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.error-message {
+  color: #e53e3e;
+  margin-bottom: 16px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.retry-button {
+  background-color: #2383e2;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.retry-button:hover {
+  background-color: #1a6fc9;
 }
 
 @media (max-width: 768px) {

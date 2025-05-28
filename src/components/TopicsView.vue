@@ -31,7 +31,7 @@
         <line x1="12" y1="16" x2="12.01" y2="16"></line>
       </svg>
       <p>{{ error }}</p>
-      <button @click="fetchTopics" class="retry-button">Tentar novamente</button>
+      <button @click="loadTopicsFromFirebase" class="retry-button">Tentar novamente</button>
     </div>
     
         <!-- Lista de tópicos -->
@@ -93,38 +93,68 @@
 import { ref, computed, onMounted } from 'vue';
 import { topics as defaultTopics } from '../data/index.js';
 import AddTopicForm from './AddTopicForm.vue';
+import { getTopics, addTopic } from '../firebase/topics.js';
 
 // Estado para armazenar os tópicos
 const customTopics = ref([]);
+const allFirebaseTopics = ref([]);
 const showAddForm = ref(false);
+const loading = ref(true);
+const error = ref(null);
 
-// Carregar tópicos personalizados do localStorage
-onMounted(() => {
-  const savedTopics = localStorage.getItem('customTopics');
-  if (savedTopics) {
-    try {
-      customTopics.value = JSON.parse(savedTopics);
-    } catch (e) {
-      console.error('Erro ao carregar tópicos salvos:', e);
-    }
+// Carregar tópicos do Firebase
+const loadTopicsFromFirebase = async () => {
+  try {
+    loading.value = true;
+    error.value = null;
+    
+    // Buscar tópicos do Firebase
+    const fetchedTopics = await getTopics();
+    console.log('Tópicos carregados do Firebase:', fetchedTopics);
+    allFirebaseTopics.value = fetchedTopics;
+  } catch (err) {
+    console.error('Erro ao carregar tópicos do Firebase:', err);
+    error.value = 'Erro ao carregar tópicos. Por favor, tente novamente.';
+  } finally {
+    loading.value = false;
   }
+};
+
+// Carregar tópicos ao montar o componente
+onMounted(async () => {
+  await loadTopicsFromFirebase();
 });
 
-// Combinar tópicos padrão e personalizados
+// Combinar tópicos padrão e do Firebase
 const allTopics = computed(() => {
-  return [...defaultTopics, ...customTopics.value];
+  // Se temos tópicos do Firebase, usamos eles
+  if (allFirebaseTopics.value && allFirebaseTopics.value.length > 0) {
+    return allFirebaseTopics.value;
+  }
+  // Caso contrário, usamos os tópicos padrão
+  return defaultTopics;
 });
 
 // Função para lidar com a adição de um novo tópico
-const handleTopicAdded = (newTopic) => {
-  // Adicionar o novo tópico à lista
-  customTopics.value.push(newTopic);
-  
-  // Salvar no localStorage
-  localStorage.setItem('customTopics', JSON.stringify(customTopics.value));
-  
-  // Fechar o modal
-  showAddForm.value = false;
+const handleTopicAdded = async (newTopic) => {
+  try {
+    loading.value = true;
+    
+    // Adicionar o tópico ao Firebase
+    const addedTopic = await addTopic(newTopic);
+    console.log('Tópico adicionado ao Firebase:', addedTopic);
+    
+    // Recarregar os tópicos do Firebase
+    await loadTopicsFromFirebase();
+    
+    // Fechar o modal
+    showAddForm.value = false;
+  } catch (err) {
+    console.error('Erro ao adicionar tópico ao Firebase:', err);
+    error.value = 'Erro ao adicionar tópico. Por favor, tente novamente.';
+  } finally {
+    loading.value = false;
+  }
 };
 </script>
 

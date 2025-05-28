@@ -1,0 +1,25 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Permitir acesso apenas a usuários autenticados para a coleção topics e suas subcoleções
+    match /topics/{topicId} {
+      allow read, write: if request.auth != null;
+      
+      // Permitir acesso às subcoleções de subjects
+      match /subjects/{subjectId} {
+        allow read, write: if request.auth != null;
+        
+        // Permitir acesso às subcoleções de blocks
+        match /blocks/{blockId} {
+          allow read, write: if request.auth != null;
+        }
+      }
+    }
+    
+    // Regra padrão: negar acesso a todas as outras coleções
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
